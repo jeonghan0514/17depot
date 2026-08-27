@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💎 SEVENTEEN 代購營收與小卡庫存管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-slate-50 p-4 md:p-8 font-sans">
+  <div id="app" class="max-w-4xl mx-auto">
+    <header class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-6 flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-pink-500 flex items-center gap-2">
+          💎 SEVENTEEN 代購營收與小卡庫存管理
+        </h1>
+        <p class="text-slate-500 text-sm mt-1">即時紀錄一補二補收益與 13 位成員小卡盤點</p>
+      </div>
+    </header>
+
+    <div class="flex gap-2 mb-6">
+      <button 
+        @click="activeTab = 'finance'" 
+        :class="activeTab === 'finance' ? 'bg-pink-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'"
+        class="px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all">
+        📊 代購營收統計
+      </button>
+      <button 
+        @click="activeTab = 'inventory'" 
+        :class="activeTab === 'inventory' ? 'bg-pink-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'"
+        class="px-5 py-2.5 rounded-xl font-medium shadow-sm transition-all">
+        🃏 成員小卡庫存 (13人)
+      </button>
+    </div>
+
+    <div v-if="activeTab === 'finance'" class="space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">➕ 新增團購帳目</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input v-model="newProject.title" type="text" placeholder="團購專案名稱 (例: 12th Mini Album 預購)" class="p-3 border rounded-xl w-col-span-2 focus:outline-none focus:ring-2 focus:ring-pink-300">
+          <input v-model.number="newProject.income" type="number" placeholder="一補+二補 預估總收入 (TWD)" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+          <input v-model.number="newProject.costKrw" type="number" placeholder="韓元採購成本 (KRW)" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+          <input v-model.number="newProject.rate" type="number" step="0.001" placeholder="採用匯率 (預設 0.024)" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+          <input v-model.number="newProject.shipping" type="number" placeholder="國際/國內運費雜支 (TWD)" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+        </div>
+        <button @click="addProject" class="mt-4 w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 rounded-xl shadow-md transition-all">
+          儲存專案帳目
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="text-slate-400 text-sm">總代購營業額</div>
+          <div class="text-2xl font-bold text-slate-800 mt-1">${{ totalRevenue.toLocaleString() }}</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="text-slate-400 text-sm">總成本與運費</div>
+          <div class="text-2xl font-bold text-slate-800 mt-1">${{ totalCost.toLocaleString() }}</div>
+        </div>
+        <div class="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm">
+          <div class="text-emerald-600 text-sm font-medium">預估總純益</div>
+          <div class="text-2xl font-bold text-emerald-600 mt-1">${{ totalProfit.toLocaleString() }}</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <h3 class="font-bold text-slate-800 mb-4">專案利潤明細</h3>
+        <div v-if="projects.length === 0" class="text-slate-400 text-center py-8">目前尚無代購專案記錄</div>
+        <div class="space-y-3">
+          <div v-for="(p, index) in projects" :key="index" class="p-4 border rounded-xl flex justify-between items-center hover:bg-slate-50">
+            <div>
+              <div class="font-bold text-slate-800">{{ p.title }}</div>
+              <div class="text-xs text-slate-500 mt-1">
+                收入: ${{ p.income }} | 韓元換算: ${{ Math.round(p.costKrw * p.rate) }} | 雜支: ${{ p.shipping }}
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-sm font-bold" :class="calcProfit(p) >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                淨利: ${{ calcProfit(p) }}
+              </div>
+              <button @click="deleteProject(index)" class="text-xs text-slate-400 hover:text-rose-500 mt-1">刪除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="activeTab === 'inventory'" class="space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">🃏 登記成員小卡認領狀態</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <select v-model="newItem.member" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+            <option v-for="m in members" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <input v-model="newItem.name" type="text" placeholder="小卡/周邊名稱 (例: 官網特典卡)" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+          <select v-model="newItem.status" class="p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300">
+            <option value="未認領">未認領 (庫存中)</option>
+            <option value="已預訂">已預訂 (待二補)</option>
+            <option value="已寄出">已寄出</option>
+          </select>
+        </div>
+        <button @click="addItem" class="mt-4 w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 rounded-xl shadow-md transition-all">
+          加入庫存清單
+        </button>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <h3 class="font-bold text-slate-800 mb-4">現有庫存與認領狀況</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div v-for="(item, index) in inventory" :key="index" class="p-4 border rounded-xl flex justify-between items-center">
+            <div>
+              <span class="inline-block bg-pink-100 text-pink-600 font-bold px-2.5 py-1 rounded-lg text-xs mr-2">
+                {{ item.member }}
+              </span>
+              <span class="font-medium text-slate-800">{{ item.name }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs px-2.5 py-1 rounded-full" 
+                :class="{
+                  'bg-amber-100 text-amber-700': item.status === '未認領',
+                  'bg-blue-100 text-blue-700': item.status === '已預訂',
+                  'bg-emerald-100 text-emerald-700': item.status === '已寄出'
+                }">
+                {{ item.status }}
+              </span>
+              <button @click="deleteItem(index)" class="text-xs text-slate-400 hover:text-rose-500">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue
+    createApp({
+      setup() {
+        const activeTab = ref('finance')
+        const members = ['S.COUPS', 'JEONGHAN', 'JOSHUA', 'JUN', 'HOSHI', 'WONWOO', 'WOOZI', 'THE 8', 'MINGYU', 'DK', 'SEUNGKWAN', 'VERNON', 'DINO', '團體/全員']
+        const projects = ref([{ title: '12th Mini Album 官網預購', income: 15000, costKrw: 450000, rate: 0.024, shipping: 1200 }])
+        const newProject = ref({ title: '', income: '', costKrw: '', rate: 0.024, shipping: '' })
+        const inventory = ref([{ member: 'HOSHI', name: '全專官網特典卡', status: '未認領' }, { member: 'JEONGHAN', name: '專輯隨機小卡 A款', status: '已預訂' }])
+        const newItem = ref({ member: 'HOSHI', name: '', status: '未認領' })
+
+        const calcProfit = (p) => p.income - Math.round(p.costKrw * p.rate) - p.shipping
+        const addProject = () => {
+          if (!newProject.value.title) return
+          projects.value.push({ ...newProject.value })
+          newProject.value = { title: '', income: '', costKrw: '', rate: 0.024, shipping: '' }
+        }
+        const deleteProject = (index) => projects.value.splice(index, 1)
+        const addItem = () => {
+          if (!newItem.value.name) return
+          inventory.value.push({ ...newItem.value })
+          newItem.value.name = ''
+        }
+        const deleteItem = (index) => inventory.value.splice(index, 1)
+
+        const totalRevenue = computed(() => projects.value.reduce((acc, p) => acc + (p.income || 0), 0))
+        const totalCost = computed(() => projects.value.reduce((acc, p) => acc + Math.round((p.costKrw || 0) * (p.rate || 0.024)) + (p.shipping || 0), 0))
+        const totalProfit = computed(() => totalRevenue.value - totalCost.value)
+
+        return { activeTab, members, projects, newProject, inventory, newItem, calcProfit, addProject, deleteProject, addItem, deleteItem, totalRevenue, totalCost, totalProfit }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>
